@@ -202,14 +202,6 @@ export default function ({ types: t }) {
           return;
         }
 
-        if (process.env.BABEL_DISABLE_CACHE !== '1') {
-          warn(
-`babel-plugin-webpack-loader:
-To avoid caching errors you need to set BABEL_DISABLE_CACHE=1 environment variable.
-More information at issue #36`
-          );
-        }
-
         const [{ value: filePath }] = args;
 
         // to support babel builds (babel-node works fine)
@@ -254,12 +246,14 @@ all babel settings in loader will be skipped`
             return;
           }
 
+          console.time(`webpack ${fileAbsPath}`);
           const webPackResult = runWebPackSync({
             path: fileAbsPath,
             configPath: compiledConfigPath,
             config,
             verbose,
           });
+          console.timeEnd(`webpack ${fileAbsPath}`);
 
           const expr = processWebPackResult(webPackResult, config);
 

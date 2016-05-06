@@ -1,41 +1,57 @@
 import { join } from 'path';
-import { readFileSync } from 'fs';
-import rimraf from 'rimraf';
 import colors from 'colors/safe';
-import { tmpdir } from 'os';
-import { quote } from 'shell-quote';
-import { execSync } from 'child_process';
+import webpack from 'webpack';
+import MemoryFs from 'memory-fs';
+import deasync from 'deasync';
 
 export default ({ path, configPath, config, verbose }) => {
-  const DEFAULT_OUTPUT_PATH = tmpdir();
+  const memFs = new MemoryFs();
+  const dest = join(__dirname, '../tmp');
+  const name = 'result.js';
+  let result;
 
-  const webPackPath = require.resolve('webpack/bin/webpack');
-  const rnd = `${(new Date()).getTime()}_${Math.round(1000000 * Math.random())}`;
-  const outPath = join(config.output.path || DEFAULT_OUTPUT_PATH, `.webpack.res.${rnd}.js`);
+  // TODO: Add warnings if entry, output.filename or output.path are already
+  // defined.
+  config.entry = path;
+  config.output = config.output || {};
+  config.output.filename = name;
+  config.output.path = dest;
 
-  // I need to run webpack via execSync because I have not found the way how to run
-  // babel visitors asynchronously or run webpack compile synchronously
-  const webPackStdOut = execSync(
-    quote([
-      'node', // for windows support
-      webPackPath,
-      path, outPath,
-      '--config', configPath,
-      '--bail',
-    ])
-  );
+  const compiler = webpack(config);
+  compiler.outputFileSystem = memFs;
+  compiler.run((err, stats) => {
+    if (err) {
+      throw err;
+    }
+    // TODO: Test verbose logging.
+    if (verbose) {
+      console.error( // eslint-disable-line
+        colors.yellow('Webpack stdout for ' + path + '\n') + // eslint-disable-line prefer-template
+        colors.yellow('---------\n') + (JSON.stringify(stats.toJson({
+            hash: false,
+            version: false,
+            timings: true,
+            assets: false,
+            chunks: false,
+            chunkModules: false,
+            modules: false,
+            children: false,
+            cached: false,
+            reasons: false,
+            source: false,
+            errorDetails: false,
+            chunkOrigins: false
+        })) + '\n') + colors.yellow('---------'));
+    }
+    const resultPath = join(dest, name);
+    if (memFs.existsSync(resultPath)) {
+      result = memFs.readFileSync(resultPath).toString();
+    } else {
+      result = '';
+    }
+  });
 
-  if (verbose) {
-    console.error( // eslint-disable-line
-      colors.blue(`Webpack stdout for ${path}\n`) + // eslint-disable-line prefer-template
-      colors.blue('---------\n') +
-      `${webPackStdOut}\n` +
-      colors.blue('---------')
-    );
-  }
+  deasync.loopWhile(() => result === undefined);
 
-  const webPackResult = readFileSync(outPath, { encoding: 'utf8' });
-  rimraf.sync(outPath);
-
-  return webPackResult;
+  return result;
 };
