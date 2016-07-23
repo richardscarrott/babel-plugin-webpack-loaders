@@ -24,6 +24,7 @@ export default ({ path, configPath, config, verbose }) => {
       throw err;
     }
     // TODO: Test verbose logging.
+    // TODO: log errors from stats if they exist...
     if (verbose) {
       console.error( // eslint-disable-line
         colors.yellow('Webpack stdout for ' + path + '\n') + // eslint-disable-line prefer-template
